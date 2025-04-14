@@ -1,0 +1,14 @@
+[project]
+name = "agno-agents"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "agno>=1.2.11",
+    "duckduckgo-search>=7.5.4",
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.6.0",
+    "ollama>=0.4.7",
+    "yfinance>=0.2.55",
+]

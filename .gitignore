@@ -172,3 +172,12 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+node_modules/
+agent-ui/
+tmp/
+package.json
+package-lock.json
+uv.lock
+pnpm-lock.yaml
+
