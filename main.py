@@ -24,7 +24,7 @@ ollama_model = Ollama(id="mistral-small3.1:latest",
                       host= "http://10.100.1.1:11434")
 
 
-datavcommand = "node C:/workspaces/python-projects/agno-agents/mcp_tools/Quickchart-MCP-Server/index.js"
+datavcommand = "C:/workspaces/python-projects/agno-agents/mcp_tools/Quickchart-MCP-Server/go-mcp-quickchart.exe"
 pgcommand = "C:/workspaces/python-projects/agno-agents/mcp_tools/go-mcp-postgres/go-mcp-postgres.exe --host 10.100.2.1 --port 5433 --name aiproxy --user username --password password --sslmode disable"
 mongcommand="C:/workspaces/python-projects/agno-agents/mcp_tools/go-mcp-mongodb/go-mcp-mongodb.exe --user myusername --password mypassword --host 10.100.2.1 --port 27017 --auth admin --dbname fastgpt"
 
