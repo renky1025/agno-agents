@@ -27,7 +27,10 @@ ollama_model = Ollama(id="mistral-small3.1:latest",
 datavcommand = "C:/workspaces/python-projects/agno-agents/mcp_tools/Quickchart-MCP-Server/go-mcp-quickchart.exe"
 pgcommand = "C:/workspaces/python-projects/agno-agents/mcp_tools/go-mcp-postgres/go-mcp-postgres.exe --host 10.100.2.1 --port 5433 --name aiproxy --user username --password password --sslmode disable"
 mongcommand="C:/workspaces/python-projects/agno-agents/mcp_tools/go-mcp-mongodb/go-mcp-mongodb.exe --user myusername --password mypassword --host 10.100.2.1 --port 27017 --auth admin --dbname fastgpt"
-
+lokicommand="C:/workspaces/python-projects/agno-agents/mcp_tools/loki-mpc/loki-mcp.exe"
+env = {
+    "LOKI_URL": "http://10.100.0.4:32004",
+}
 agent_storage: str = "tmp/agents.db"
 web_agent = Agent(
     name="Web Agent",
@@ -54,7 +57,7 @@ finance_agent = Agent(
 )
 async def run_server() -> None:
     # Create a client session to connect to the MCP server
-    async with MultiMCPTools([datavcommand, pgcommand, mongcommand]) as mcp_tools:
+    async with MultiMCPTools([datavcommand, pgcommand, mongcommand, lokicommand], env=env) as mcp_tools:
         # 创建MCP代理
         if mcp_tools:
             try:
@@ -63,51 +66,59 @@ async def run_server() -> None:
                     model=ollama_model,
                     tools=[mcp_tools],
                     instructions=dedent("""\
+## You are a data analysis assistant that uses tools to complete the following tasks:
 
-## 你是一个数据分析助手，使用 `mcp tools` 工具完成以下任务：
+### 1. Intelligently select the appropriate data source based on the user's request:
 
-1. 根据用户需求选择合适的数据库进行查询：
-   - postgres_*：用于连接并查询 PostgreSQL 数据库；
-   - mongo_*：用于连接并查询 MongoDB 数据库;
-   - 如果你不清楚数据表内部字段,请先使用对应数据库的*_describe_table工具查询表内部结构.
+- **PostgreSQL databases**: Use the `postgres_*` tools;
+- **MongoDB databases**: Use the `mongo_*` tools;
+- **Server logs**: Use the `loki_*` tools;
+- If the internal structure of a table is unknown, first call the appropriate `*_describe_table` tool to retrieve the table schema.
 
-2. 构造查询语句，从数据库中提取满足条件的数据。
-   - 构造数据查询语句，需要根据前面获取的表结构，构造出合适的查询语句。
-   - 查询语句需要根据使用数据库类型,使用对应的SQL语法。
+### 2. Construct and execute accurate query statements:
 
-3. 返回结果要求
-    - 如果要求生成图表，优先检查输入数据是否符合如下json格式，如果符合，则直接使用输入数据调用generate_chart生成图表，否则将查询结果转换为如下固定 JSON 格式：
+- Based on the table schema and user intent, construct valid query statements using the correct syntax for the target database (SQL for PostgreSQL/MongoDB, LogQL for Loki);
+- Ensure the selected fields and logic match the user’s requirements;
+- Execute the query using the appropriate `mcptools` command.
+
+### 3. Result formatting and return rules:
+
+- **By default, return data in a tabular format**;
+- **If the user requests a chart**, follow these steps:
+  - Check whether the result is already in the expected JSON format (as shown below);
+  - If not, convert the data to the following standardized JSON structure:
+
 ```json
 {
   "type": "bar" | "line" | "pie" | "scatter" | "area",
   "data": {
-    "labels": ["January", "February", "March"],#X轴显示标签
+    "labels": ["Label 1", "Label 2", "Label 3"],
     "datasets": [{
-      "label": "Sales",
-      "data": [y轴数据65, 59, 80],#y轴数据
+      "label": "Series Name",
+      "data": [10, 20, 30],
       "backgroundColor": "rgb(75, 192, 192)"
     }]
   },
   "options": {
     "title": {
       "display": true,
-      "text": "标题"
+      "text": "Chart Title"
     }
   }
 }
 ```
-- 如果用户没有要求，默认数据一个表格形式返回
 
-4. 使用以上 JSON 数据用工具generate_chart生成图表，自动选择合适的图表类型（如趋势数据用 `line`，分类数据用 `bar` 或 `pie`）。
+  - Automatically choose the most appropriate chart type (e.g., `line` for trends, `bar` or `pie` for categories);
+  - Use the `generate_chart` tool to create the chart;
+  - Return the chart as an embedded image using Markdown syntax: `![](chart_link)`, not as a plain URL.
 
-**注意事项：**
-- 查询结果要确保字段完整，数据清洗正确；
-- 图表内容需清晰表达用户问题中的核心数据关系；
-- 若用户未指定数据库类型，请根据查询内容智能判断；
-- 查询完毕后，请将生成的图表链接嵌入为图片展示：
-    - 图表链接应以 Markdown 语法格式插入对话框：`![](图表链接)`;
-    - 不要只展示链接文字，请以图片形式直接渲染；
-- 若有多个图表，可依次展示多个图片。
+### 4. Additional guidelines:
+
+- Ensure the query results are complete and properly cleaned;
+- The chart must clearly represent the key data relationship in the user's question;
+- If the user does not specify the database type, infer it from the query intent;
+- If multiple charts are needed, render each one separately and sequentially.
+
 """),
                     debug_mode= True,
                     storage=SqliteStorage(table_name="mcp_agents", db_file=agent_storage),
