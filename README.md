@@ -42,6 +42,61 @@ uv pip install -U agno duckduckgo-search httpx "mcp[cli]" ollama yfinance jira
 
 ## 多agent
 
+```shell
+#方式一
+    Agent(
+        name="多智能体Team",
+        model=ollama_model,
+        team=[
+        json_format_agent, xxxx,xxx,
+        ],
+        instructions=[
+        """prompt"""
+        ],
+        #success_criteria="图表生成成功，有quickchart的链接.",
+        #enable_agentic_context=True,
+        show_tool_calls=True,
+        markdown=True,
+        add_context=True,
+        add_datetime_to_instructions=True,
+        add_history_to_messages=True,
+        num_history_responses=5,
+        #show_members_responses=True,
+    )
+#方式二
+    Team(
+        name="多智能体Team",
+        model=ollama_model,
+        members=[
+        json_format_agent, xxxx,xxx,
+        ],
+        instructions=[
+        """prompt"""
+        ],
+        success_criteria="图表生成成功，有quickchart的链接.",
+        enable_agentic_context=True,
+        show_tool_calls=True,
+        markdown=True,
+        add_context=True,
+        add_datetime_to_instructions=True,
+        add_history_to_messages=True,
+        num_history_responses=5,
+        show_members_responses=True,
+    )
+
+# 载入多个mcp tools 目前测试只有这个方式可以工作
+ async with MultiMCPTools([datavcommand, pgcommand]) as mcp_tools:
+        # 创建MCP代理
+        if mcp_tools:
+            try:
+                mcp_agent = Agent(
+                   name="MCP Tools",
+                    model=ollama_model,
+                    tools=[mcp_tools],
+                )
+
+```
+
 ## Get Started with Agent UI
 
 ```shell

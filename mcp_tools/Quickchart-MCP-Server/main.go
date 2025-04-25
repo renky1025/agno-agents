@@ -17,13 +17,14 @@ const QUICKCHART_BASE_URL = "https://quickchart.io/chart"
 type ChartConfig struct {
 	Type string `json:"type"`
 	Data struct {
+		// Type     string   `json:"type,omitempty"`
+		// Fill     bool     `json:"fill,omitempty"`
 		Labels   []string `json:"labels,omitempty"`
 		Datasets []struct {
-			Label            string                 `json:"label,omitempty"`
-			Data             interface{}            `json:"data"`
-			BackgroundColor  interface{}            `json:"backgroundColor,omitempty"`
-			BorderColor      interface{}            `json:"borderColor,omitempty"`
-			AdditionalConfig map[string]interface{} `json:"-"`
+			Label           string      `json:"label,omitempty"`
+			Data            interface{} `json:"data"`
+			BackgroundColor interface{} `json:"backgroundColor,omitempty"`
+			BorderColor     interface{} `json:"borderColor,omitempty"`
 		} `json:"datasets"`
 	} `json:"data"`
 	Options struct {
@@ -37,7 +38,9 @@ type ChartConfig struct {
 func generateChartTool() mcp.Tool {
 	return mcp.NewTool("generate_chart",
 		mcp.WithDescription("Generate a chart using QuickChart, 使用QuickChart生成图表"),
-		mcp.WithObject("config", mcp.Required(), mcp.Description("图表配置，使用JSON格式")),
+		mcp.WithObject("chart_data",
+			mcp.Required(),
+			mcp.Description("图表配置数据，使用quickchart的配置数据")),
 	)
 }
 
@@ -45,8 +48,6 @@ func main() {
 	s := server.NewMCPServer(
 		"quickchart-mcp-server 🚀",
 		"1.0.0",
-		server.WithResourceCapabilities(true, true),
-		server.WithPromptCapabilities(true),
 		server.WithLogging(),
 	)
 
@@ -67,7 +68,7 @@ func validateChartType(chartType string) {
 
 func generateChartToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := ChartConfig{}
-	chartConfig, ok := request.Params.Arguments["config"].(map[string]interface{})
+	chartConfig, ok := request.Params.Arguments["chart_data"].(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("invalid chart configuration")
 	}

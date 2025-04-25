@@ -81,11 +81,11 @@ func main() {
 	)
 
 	s.AddTool(createReadQueryTool(), readQueryToolHandler)
-	s.AddTool(createWriteQueryTool(), writeQueryToolHandler)
-	s.AddTool(createCreateTableTool(), createTableToolHandler)
+	// s.AddTool(createWriteQueryTool(), writeQueryToolHandler)
+	// s.AddTool(createCreateTableTool(), createTableToolHandler)
 	s.AddTool(createListTablesTool(), listTableToolHandler)
-	s.AddTool(createExplainQueryTool(), explainQueryToolHandler)
-	s.AddTool(createCreateIndexTool(), createIndexToolHandler)
+	// s.AddTool(createExplainQueryTool(), explainQueryToolHandler)
+	// s.AddTool(createCreateIndexTool(), createIndexToolHandler)
 	s.AddTool(createDescribeTableTool(), describeTableToolHandler)
 
 	if err := server.ServeStdio(s); err != nil {
@@ -93,72 +93,31 @@ func main() {
 	}
 }
 
+func createDescribeTableTool() mcp.Tool {
+	return mcp.NewTool("postgres_describe_table",
+		mcp.WithDescription("Describe a table in the postgres database, query the table structure in the postgres database, 描述一个表在postgres数据库中，查询一个表的结构在postgres数据库中"),
+		mcp.WithString("table_name",
+			mcp.Required(),
+			mcp.Description("The table name to describe, 要描述的表名"),
+		),
+	)
+}
+
 func createReadQueryTool() mcp.Tool {
-	return mcp.NewTool("postgres_read_query",
-		mcp.WithDescription("Execute a SELECT query on the postgres database"),
+	return mcp.NewTool("postgres_execute_query",
+		mcp.WithDescription("Execute a SELECT query on the postgres database, 执行一个SELECT查询在postgres数据库上"),
 		mcp.WithString("query",
 			mcp.Required(),
-			mcp.Description("SELECT SQL query to execute"),
-		),
-	)
-}
-
-func createWriteQueryTool() mcp.Tool {
-	return mcp.NewTool("postgres_write_query",
-		mcp.WithDescription("Execute an INSERT, UPDATE, or DELETE query on the postgres database"),
-		mcp.WithString("query",
-			mcp.Required(),
-			mcp.Description("SQL query to execute"),
-		),
-	)
-}
-
-func createCreateTableTool() mcp.Tool {
-	return mcp.NewTool("postgres_create_table",
-		mcp.WithDescription("Create a new table in the postgres database"),
-		mcp.WithString("schema",
-			mcp.Required(),
-			mcp.Description("CREATE TABLE SQL statement"),
+			mcp.Description("SELECT SQL query to execute, 执行一个SELECT查询"),
 		),
 	)
 }
 
 func createListTablesTool() mcp.Tool {
 	return mcp.NewTool("postgres_list_tables",
-		mcp.WithDescription("List all user tables in the database"),
-		mcp.WithString("schema",
-			mcp.Description("Optional schema name to filter tables"),
-		),
-	)
-}
-
-// 创建explain查询工具定义
-func createExplainQueryTool() mcp.Tool {
-	return mcp.NewTool("postgres_explain_query",
-		mcp.WithDescription("Explain a query execution plan on the postgres database"),
-		mcp.WithString("schema",
-			mcp.Required(),
-			mcp.Description("SQL query to explain, start with EXPLAIN"),
-		),
-	)
-}
-
-func createCreateIndexTool() mcp.Tool {
-	return mcp.NewTool("postgres_create_index",
-		mcp.WithDescription("Create a new index on the postgres database"),
-		mcp.WithString("schema",
-			mcp.Required(),
-			mcp.Description("CREATE INDEX SQL statement"),
-		),
-	)
-}
-
-func createDescribeTableTool() mcp.Tool {
-	return mcp.NewTool("postgres_describe_table",
-		mcp.WithDescription("Describe a table in the postgres database, query the table structure in the postgres database"),
-		mcp.WithString("schema",
-			mcp.Required(),
-			mcp.Description("Table name to describe"),
+		mcp.WithDescription("List all user tables in the database, 列出数据库中的所有用户表"),
+		mcp.WithString("table_name",
+			mcp.Description("Optional table name to filter tables, 可选的表名来过滤表"),
 		),
 	)
 }
@@ -358,7 +317,7 @@ func createIndexToolHandler(ctx context.Context, request mcp.CallToolRequest) (*
 }
 
 func describeTableToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	schema, ok := request.Params.Arguments["schema"].(string)
+	table_name, ok := request.Params.Arguments["table_name"].(string)
 	if !ok {
 		return nil, errors.New("invalid schema parameter")
 	}
@@ -367,7 +326,7 @@ func describeTableToolHandler(ctx context.Context, request mcp.CallToolRequest) 
 		SELECT column_name, data_type
 		FROM information_schema.columns
 		WHERE table_name = '%s'
-	`, schema)
+	`, table_name)
 
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
