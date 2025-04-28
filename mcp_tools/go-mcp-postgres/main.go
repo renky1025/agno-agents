@@ -20,16 +20,9 @@ import (
 )
 
 var (
-	db          *sql.DB
-	writeStmt   = regexp.MustCompile(`(?i)^\s*(INSERT|UPDATE|DELETE)`)
-	selectStmt  = regexp.MustCompile(`(?i)^\s*SELECT`)
-	createStmt  = regexp.MustCompile(`(?i)^\s*CREATE TABLE`)
-	explainStmt = regexp.MustCompile(`(?i)^\s*EXPLAIN`)
+	db         *sql.DB
+	selectStmt = regexp.MustCompile(`(?i)^\s*SELECT`)
 )
-
-type DB struct {
-	*sql.DB
-}
 
 func init() {
 	if _, err := os.Stat(".env"); err == nil {
@@ -50,7 +43,7 @@ var (
 
 func main() {
 	// 初始化数据库连接池
-
+	transport := flag.String("transport", "stdio", "Transport to use (stdio, sse)")
 	flag.StringVar(&host, "host", "", "POSTGRES HOST")
 	flag.StringVar(&port, "port", "", "POSTGRES PORT")
 	flag.StringVar(&name, "name", "", "POSTGRES NAME")
@@ -72,7 +65,7 @@ func main() {
 	}
 	defer db.Close()
 
-	s := server.NewMCPServer(
+	mcpServer := server.NewMCPServer(
 		"postgresql-mcp-server 🚀",
 		"1.0.0",
 		server.WithResourceCapabilities(true, true),
@@ -80,16 +73,20 @@ func main() {
 		server.WithLogging(),
 	)
 
-	s.AddTool(createReadQueryTool(), readQueryToolHandler)
-	// s.AddTool(createWriteQueryTool(), writeQueryToolHandler)
-	// s.AddTool(createCreateTableTool(), createTableToolHandler)
-	s.AddTool(createListTablesTool(), listTableToolHandler)
-	// s.AddTool(createExplainQueryTool(), explainQueryToolHandler)
-	// s.AddTool(createCreateIndexTool(), createIndexToolHandler)
-	s.AddTool(createDescribeTableTool(), describeTableToolHandler)
+	mcpServer.AddTool(createReadQueryTool(), readQueryToolHandler)
+	mcpServer.AddTool(createListTablesTool(), listTableToolHandler)
+	mcpServer.AddTool(createDescribeTableTool(), describeTableToolHandler)
 
-	if err := server.ServeStdio(s); err != nil {
-		log.Printf("Server error: %v\n", err)
+	if *transport == "sse" {
+		sseServer := server.NewSSEServer(mcpServer, server.WithBaseURL("http://localhost:8080"))
+		log.Printf("SSE server listening on :8080")
+		if err := sseServer.Start(":8080"); err != nil {
+			log.Fatalf("Server error: %v", err)
+		}
+	} else {
+		if err := server.ServeStdio(mcpServer); err != nil {
+			log.Fatalf("Server error: %v", err)
+		}
 	}
 }
 
@@ -130,18 +127,6 @@ type PDBCONNECTION struct {
 	Password string
 	SSLMODE  string
 }
-
-// func getDefaultDBConnection() map[string]string {
-// 	return map[string]string{
-// 		"DB_HOST":     "10.100.2.1",
-// 		"DB_PORT":     "5433",
-// 		"DB_NAME":     "aiproxy",
-// 		"DB_USER":     "username",
-// 		"DB_PASSWORD": "password",
-// 		"DB_SSLMODE":  "disable",
-// 	}
-
-// }
 
 func initConnectionPool(dbconfig PDBCONNECTION) error {
 	port, err := strconv.Atoi(dbconfig.Port)
@@ -201,44 +186,6 @@ func readQueryToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 	return mcp.NewToolResultText(fmt.Sprintf("Query results: %v", results)), nil
 }
 
-func writeQueryToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	query, ok := request.Params.Arguments["query"].(string)
-	if !ok {
-		return nil, errors.New("invalid query parameter")
-	}
-
-	if !writeStmt.MatchString(query) {
-		return nil, errors.New("only INSERT/UPDATE/DELETE queries are allowed")
-	}
-
-	result, err := db.ExecContext(ctx, query)
-	if err != nil {
-		log.Printf("Write error: %v\n", err)
-		return nil, fmt.Errorf("write operation failed")
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	return mcp.NewToolResultText(fmt.Sprintf("Operation successful. Rows affected: %d", rowsAffected)), nil
-}
-
-func createTableToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	schema, ok := request.Params.Arguments["schema"].(string)
-	if !ok {
-		return nil, errors.New("invalid schema parameter")
-	}
-
-	if !createStmt.MatchString(schema) {
-		return nil, errors.New("invalid CREATE TABLE statement")
-	}
-
-	if _, err := db.ExecContext(ctx, schema); err != nil {
-		log.Printf("Create table error: %v\n", err)
-		return nil, fmt.Errorf("table creation failed")
-	}
-
-	return mcp.NewToolResultText("Table created successfully"), nil
-}
-
 func listTableToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	schemaFilter := ""
 	if schema, ok := request.Params.Arguments["schema"].(string); ok {
@@ -268,52 +215,6 @@ func listTableToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Tables: %v", tables)), nil
-}
-
-// explain查询处理函数
-func explainQueryToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	query, ok := request.Params.Arguments["schema"].(string)
-	if !ok {
-		return nil, errors.New("invalid schema parameter")
-	}
-
-	if !explainStmt.MatchString(query) {
-		return nil, errors.New("invalid explain schema parameter")
-	}
-
-	// 执行EXPLAIN查询
-	rows, err := db.QueryContext(ctx, query)
-	if err != nil {
-		log.Printf("Explain error: %v\n", err)
-		return nil, fmt.Errorf("explain execution failed: %v", err)
-	}
-	defer rows.Close()
-
-	// 解析结果
-	var plan strings.Builder
-	for rows.Next() {
-		var line string
-		if err := rows.Scan(&line); err != nil {
-			return nil, fmt.Errorf("error scanning explain result: %v", err)
-		}
-		plan.WriteString(line)
-		plan.WriteString("\n")
-	}
-
-	return mcp.NewToolResultText(fmt.Sprintf("Execution plan:\n%s", plan.String())), nil
-}
-
-func createIndexToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	schema, ok := request.Params.Arguments["schema"].(string)
-	if !ok {
-		return nil, errors.New("invalid schema parameter")
-	}
-
-	if _, err := db.ExecContext(ctx, schema); err != nil {
-		return nil, fmt.Errorf("创建索引失败: %v", err)
-	}
-
-	return mcp.NewToolResultText("Index created successfully"), nil
 }
 
 func describeTableToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {

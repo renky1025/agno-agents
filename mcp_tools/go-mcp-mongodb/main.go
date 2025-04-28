@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -41,6 +42,8 @@ func main() {
 	// 硬编码MongoDB连接信息，避免通过命令行参数传递
 	// mongouri = "mongodb://myusername:mypassword@10.100.2.1:27017/?authSource=admin"
 	// dbname = "fastgpt"
+	transport := flag.String("transport", "stdio", "Transport to use (stdio, sse)")
+
 	flag.StringVar(&user, "user", "", "MONGO username")
 	flag.StringVar(&password, "password", "", "MONGO password")
 	flag.StringVar(&host, "host", "", "MONGO host")
@@ -68,7 +71,7 @@ func main() {
 		}
 	}()
 
-	s := server.NewMCPServer(
+	mcpServer := server.NewMCPServer(
 		"mongo-mcp-server 🚀",
 		"1.0.0",
 		server.WithResourceCapabilities(true, true),
@@ -76,17 +79,26 @@ func main() {
 		server.WithLogging(),
 	)
 
-	s.AddTool(createReadQueryTool(), readQueryToolHandler)
-	s.AddTool(createWriteQueryTool(), writeQueryToolHandler)
-	s.AddTool(createCreateTableTool(), createTableToolHandler)
-	s.AddTool(createListTablesTool(), listTableToolHandler)
-	s.AddTool(createExplainQueryTool(), explainQueryToolHandler)
-	s.AddTool(createCreateIndexTool(), createIndexToolHandler)
-	s.AddTool(createDescribeTableTool(), describeTableToolHandler)
+	mcpServer.AddTool(createReadQueryTool(), readQueryToolHandler)
+	mcpServer.AddTool(createWriteQueryTool(), writeQueryToolHandler)
+	mcpServer.AddTool(createCreateTableTool(), createTableToolHandler)
+	mcpServer.AddTool(createListTablesTool(), listTableToolHandler)
+	mcpServer.AddTool(createExplainQueryTool(), explainQueryToolHandler)
+	mcpServer.AddTool(createCreateIndexTool(), createIndexToolHandler)
+	mcpServer.AddTool(createDescribeTableTool(), describeTableToolHandler)
 
-	if err := server.ServeStdio(s); err != nil {
-		os.Exit(1)
+	if *transport == "sse" {
+		sseServer := server.NewSSEServer(mcpServer, server.WithBaseURL("http://localhost:8080"))
+		log.Printf("SSE server listening on :8080")
+		if err := sseServer.Start(":8080"); err != nil {
+			log.Fatalf("Server error: %v", err)
+		}
+	} else {
+		if err := server.ServeStdio(mcpServer); err != nil {
+			log.Fatalf("Server error: %v", err)
+		}
 	}
+
 }
 
 func createReadQueryTool() mcp.Tool {

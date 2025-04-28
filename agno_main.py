@@ -33,6 +33,8 @@ datavcommand = "C:/workspaces/python-projects/agno-agents/mcp_tools/Quickchart-M
 pgcommand = "C:/workspaces/python-projects/agno-agents/mcp_tools/go-mcp-postgres/go-mcp-postgres.exe --host 10.100.2.1 --port 5433 --name aiproxy --user username --password password --sslmode disable"
 mongcommand="C:/workspaces/python-projects/agno-agents/mcp_tools/go-mcp-mongodb/go-mcp-mongodb.exe --user myusername --password mypassword --host 10.100.2.1 --port 27017 --auth admin --dbname fastgpt"
 lokicommand="C:/workspaces/python-projects/agno-agents/mcp_tools/loki-mpc/loki-mcp.exe"
+k8scommand="C:/workspaces/python-projects/agno-agents/mcp_tools/go-mcp-k8s/go-mcp-k8s.exe --kubeconfig C:/workspaces/MCPCommand/10.100.0.4/202504111125/config"
+
 env = {
     "LOKI_URL": "http://10.100.0.4:32004",
 }

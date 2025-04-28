@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"slices"
@@ -45,16 +46,27 @@ func generateChartTool() mcp.Tool {
 }
 
 func main() {
-	s := server.NewMCPServer(
+	transport := flag.String("transport", "stdio", "Transport to use (stdio, sse)")
+	flag.Parse()
+
+	mcpServer := server.NewMCPServer(
 		"quickchart-mcp-server 🚀",
 		"1.0.0",
 		server.WithLogging(),
 	)
 
-	s.AddTool(generateChartTool(), generateChartToolHandler)
+	mcpServer.AddTool(generateChartTool(), generateChartToolHandler)
 
-	if err := server.ServeStdio(s); err != nil {
-		log.Printf("Server error: %v\n", err)
+	if *transport == "sse" {
+		sseServer := server.NewSSEServer(mcpServer, server.WithBaseURL("http://localhost:8080"))
+		log.Printf("SSE server listening on :8080")
+		if err := sseServer.Start(":8080"); err != nil {
+			log.Fatalf("Server error: %v", err)
+		}
+	} else {
+		if err := server.ServeStdio(mcpServer); err != nil {
+			log.Printf("Server error: %v", err)
+		}
 	}
 }
 
